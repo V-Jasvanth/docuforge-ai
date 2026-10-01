@@ -1,0 +1,209 @@
+// Prisma schema for DocuForge AI
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  IDLE
+  ANALYZING
+  GENERATING
+  READY
+  ERROR
+}
+
+enum AnalysisStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum DocSectionStatus {
+  NOT_GENERATED
+  GENERATED
+  NEEDS_REVIEW
+  OUTDATED
+}
+
+enum ActivityType {
+  PROJECT_CREATED
+  REPO_CONNECTED
+  ANALYSIS_COMPLETED
+  DOCS_GENERATED
+  SECTION_UPDATED
+  DRIFT_DETECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  projects   Project[]
+  activities Activity[]
+
+  @@map("users")
+}
+
+model Project {
+  id                   String        @id @default(cuid())
+  userId               String
+  name                 String
+  description          String?
+  framework            String?
+  languages            String[]      @default([])
+  status               ProjectStatus @default(IDLE)
+  lastAnalyzedAt       DateTime?
+  lastDocGeneratedAt   DateTime?
+  docVersion           String        @default("1.0.0")
+  settings             Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository            Repository?
+  analyses              Analysis[]
+  documentations        Documentation[]
+  documentationVersions DocumentationVersion[]
+  activities            Activity[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Repository {
+  id           String    @id @default(cuid())
+  projectId    String    @unique
+  name         String
+  owner        String
+  url          String
+  branch       String    @default("main")
+  provider     String    @default("github")
+  isConnected  Boolean   @default(true)
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("repositories")
+}
+
+model Analysis {
+  id                String         @id @default(cuid())
+  projectId         String
+  status            AnalysisStatus @default(PENDING)
+  summary           Json?
+  filesCount        Int            @default(0)
+  totalLines        Int            @default(0)
+  detectedFramework String?
+  detectedLanguages String[]       @default([])
+  errorMessage      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analysisFiles AnalysisFile[]
+
+  @@index([projectId])
+  @@map("analyses")
+}
+
+model AnalysisFile {
+  id         String   @id @default(cuid())
+  analysisId String
+  path       String
+  name       String
+  extension  String?
+  size       Int      @default(0)
+  isIgnored  Boolean  @default(false)
+  category   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([path])
+  @@map("analysis_files")
+}
+
+model Documentation {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project  Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sections DocumentationSection[]
+
+  @@index([projectId])
+  @@map("documentations")
+}
+
+model DocumentationSection {
+  id              String           @id @default(cuid())
+  documentationId String
+  key             String
+  title           String
+  content         String           @db.Text
+  status          DocSectionStatus @default(NOT_GENERATED)
+  order           Int              @default(0)
+  lastGeneratedAt DateTime?
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  documentation Documentation @relation(fields: [documentationId], references: [id], onDelete: Cascade)
+
+  @@index([documentationId])
+  @@index([key])
+  @@map("documentation_sections")
+}
+
+model DocumentationVersion {
+  id           String   @id @default(cuid())
+  projectId    String
+  version      String
+  changelog    String?
+  createdBy    String?
+  snapshotData Json
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("documentation_versions")
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  projectId   String?
+  userId      String
+  type        ActivityType
+  title       String
+  description String?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@map("activities")
+}

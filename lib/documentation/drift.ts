@@ -25,6 +25,11 @@ export interface DetailedDriftAnalysis {
   summary: string;
 }
 
+export function normalizeFilePath(p: string): string {
+  if (!p) return "";
+  return p.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+/, "");
+}
+
 export function compareAnalyses(
   prevAnalysis: CodebaseAnalysisResult,
   currentAnalysis: CodebaseAnalysisResult
@@ -34,10 +39,16 @@ export function compareAnalyses(
   const currFileMap = new Map<string, { size?: number }>();
 
   if (prevAnalysis.filesTree && Array.isArray(prevAnalysis.filesTree)) {
-    prevAnalysis.filesTree.forEach((f) => prevFileMap.set(f.path, { size: f.size }));
+    prevAnalysis.filesTree.forEach((f) => {
+      const norm = normalizeFilePath(f.path);
+      prevFileMap.set(norm, { size: f.size });
+    });
   }
   if (currentAnalysis.filesTree && Array.isArray(currentAnalysis.filesTree)) {
-    currentAnalysis.filesTree.forEach((f) => currFileMap.set(f.path, { size: f.size }));
+    currentAnalysis.filesTree.forEach((f) => {
+      const norm = normalizeFilePath(f.path);
+      currFileMap.set(norm, { size: f.size });
+    });
   }
 
   // Detect added or modified files
@@ -73,28 +84,29 @@ export function mapImpactToDocSections(changes: FileChange[]): SectionImpact[] {
   };
 
   for (const change of changes) {
-    const p = change.path.toLowerCase();
+    const normPath = normalizeFilePath(change.path);
+    const p = normPath.toLowerCase();
     const statusLabel = change.status.toLowerCase();
 
     // API Reference
-    if (p.includes("/api/") || p.includes("route.") || p.includes("controller") || p.includes("endpoint")) {
+    if (p.includes("/api/") || p.includes("route.") || p.includes("controller") || p.includes("endpoint") || p.startsWith("api/")) {
       const imp = getImpact("api_reference");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`API route or controller file ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`API route or controller file ${normPath} was ${statusLabel}.`);
     }
 
     // Database Architecture
-    if (p.includes("schema.prisma") || p.includes("/models/") || p.includes("/migrations/") || p.includes("/db/") || p.includes("entity")) {
+    if (p.includes("schema.prisma") || p.includes("/models/") || p.includes("/migrations/") || p.includes("/db/") || p.includes("entity") || p.startsWith("models/")) {
       const imp = getImpact("database");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Database schema/model file ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Database schema/model file ${normPath} was ${statusLabel}.`);
     }
 
     // Environment Variables
     if (p.includes(".env") || p.includes("config/env") || p.includes("env.ts") || p.includes("env.js") || p.includes("env.mjs")) {
       const imp = getImpact("environment_variables");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Environment configuration file ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Environment configuration file ${normPath} was ${statusLabel}.`);
     }
 
     // Configuration
@@ -106,8 +118,8 @@ export function mapImpactToDocSections(changes: FileChange[]): SectionImpact[] {
       p.includes(".eslintrc")
     ) {
       const imp = getImpact("configuration");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Configuration file ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Configuration file ${normPath} was ${statusLabel}.`);
     }
 
     // Installation
@@ -121,8 +133,8 @@ export function mapImpactToDocSections(changes: FileChange[]): SectionImpact[] {
       p.endsWith("go.mod")
     ) {
       const imp = getImpact("installation");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Package manifest/lock file ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Package manifest/lock file ${normPath} was ${statusLabel}.`);
     }
 
     // Deployment
@@ -135,51 +147,51 @@ export function mapImpactToDocSections(changes: FileChange[]): SectionImpact[] {
       p.includes("render.yaml")
     ) {
       const imp = getImpact("deployment");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Deployment/CI file ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Deployment/CI file ${normPath} was ${statusLabel}.`);
     }
 
     // Development Guide
     if (p.endsWith("package.json") || p.includes("makefile") || p.includes("jest") || p.includes("vitest")) {
       const imp = getImpact("development");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Development script or test configuration ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Development script or test configuration ${normPath} was ${statusLabel}.`);
     }
 
     // Contribution Guide
     if (p.includes("contributing") || p.includes("pull_request_template") || p.includes("code_of_conduct")) {
       const imp = getImpact("contributing");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Contribution guideline ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Contribution guideline ${normPath} was ${statusLabel}.`);
     }
 
     // README / Project Overview
     if (p.includes("readme") || p.includes("changelog")) {
       const impReadme = getImpact("readme");
-      impReadme.changedFiles.add(change.path);
-      impReadme.reasons.add(`Repository README/changelog ${change.path} was ${statusLabel}.`);
+      impReadme.changedFiles.add(normPath);
+      impReadme.reasons.add(`Repository README/changelog ${normPath} was ${statusLabel}.`);
 
       const impOverview = getImpact("overview");
-      impOverview.changedFiles.add(change.path);
-      impOverview.reasons.add(`Repository overview file ${change.path} was ${statusLabel}.`);
+      impOverview.changedFiles.add(normPath);
+      impOverview.reasons.add(`Repository overview file ${normPath} was ${statusLabel}.`);
     }
 
     // Troubleshooting
     if (p.includes("faq") || p.includes("troubleshooting")) {
       const imp = getImpact("troubleshooting");
-      imp.changedFiles.add(change.path);
-      imp.reasons.add(`Troubleshooting guide ${change.path} was ${statusLabel}.`);
+      imp.changedFiles.add(normPath);
+      imp.reasons.add(`Troubleshooting guide ${normPath} was ${statusLabel}.`);
     }
 
     // Architecture & Folder Structure (structural directory changes)
     if (change.status === "ADDED" || change.status === "REMOVED") {
       const impArch = getImpact("architecture");
-      impArch.changedFiles.add(change.path);
-      impArch.reasons.add(`Structural code change: ${change.path} was ${statusLabel}.`);
+      impArch.changedFiles.add(normPath);
+      impArch.reasons.add(`Structural code change: ${normPath} was ${statusLabel}.`);
 
       const impFolder = getImpact("folder_structure");
-      impFolder.changedFiles.add(change.path);
-      impFolder.reasons.add(`Directory tree change: ${change.path} was ${statusLabel}.`);
+      impFolder.changedFiles.add(normPath);
+      impFolder.reasons.add(`Directory tree change: ${normPath} was ${statusLabel}.`);
     }
   }
 
@@ -241,7 +253,6 @@ export async function analyzeAndUpdateProjectDrift(projectId: string): Promise<D
     const doc = project.documentations[0];
     const affectedKeys = affectedSections.map((s) => s.sectionKey);
 
-    // Update section status to OUTDATED in database
     await prisma.documentationSection.updateMany({
       where: {
         documentationId: doc.id,
@@ -252,7 +263,6 @@ export async function analyzeAndUpdateProjectDrift(projectId: string): Promise<D
       },
     });
 
-    // Record drift activity
     await prisma.activity.create({
       data: {
         projectId,

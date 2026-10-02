@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createProjectSchema, parseGitHubUrl } from "@/lib/validation";
 import { prisma } from "@/lib/db/prisma";
-
-async function getOrCreateDefaultUser() {
-  let user = await prisma.user.findFirst();
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        name: "Alex Vance",
-        email: "demo@docuforge.ai",
-        passwordHash: "$2b$10$demo_hash_placeholder",
-      },
-    });
-  }
-  return user;
-}
+import { getAuthenticatedUser } from "@/lib/auth/utils";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getAuthenticatedUser(req);
 
     const projects = await prisma.project.findMany({
       where: { userId: user.id },
@@ -60,21 +47,15 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to fetch projects";
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const user = await getAuthenticatedUser(req);
 
-    // 1. Zod Validation
     const validationResult = createProjectSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
@@ -89,7 +70,6 @@ export async function POST(req: NextRequest) {
 
     const { name, repositoryUrl, branch, framework, description } = validationResult.data;
 
-    // 2. Extract GitHub repository info
     const parsedGitUrl = parseGitHubUrl(repositoryUrl);
     if (!parsedGitUrl) {
       return NextResponse.json(
@@ -101,9 +81,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await getOrCreateDefaultUser();
-
-    // 3. Duplicate check for same user & repository
     const existingRepo = await prisma.repository.findFirst({
       where: {
         owner: parsedGitUrl.owner,
@@ -128,7 +105,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Create Project & Repository records in Prisma
     const project = await prisma.project.create({
       data: {
         userId: user.id,
@@ -170,12 +146,6 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal server error creating project";
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

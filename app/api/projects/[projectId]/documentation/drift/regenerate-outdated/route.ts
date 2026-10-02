@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { documentationPipelineService } from "@/lib/documentation/pipeline";
 import type { DocSectionKey } from "@/lib/documentation/types";
+import { getAuthenticatedUser, validateProjectOwnership } from "@/lib/auth/utils";
 
 export async function POST(
   request: NextRequest,
@@ -9,8 +10,11 @@ export async function POST(
 ) {
   try {
     const { projectId } = await params;
-    if (!projectId) {
-      return NextResponse.json({ success: false, error: "Project ID is required" }, { status: 400 });
+    const user = await getAuthenticatedUser(request);
+
+    const ownership = await validateProjectOwnership(projectId, user.id);
+    if (!ownership.isOwner) {
+      return NextResponse.json({ success: false, error: ownership.error }, { status: ownership.status });
     }
 
     const doc = await prisma.documentation.findFirst({

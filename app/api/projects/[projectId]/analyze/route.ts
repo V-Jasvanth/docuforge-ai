@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { gitHubService } from "@/lib/github/service";
 import { codebaseAnalyzerService } from "@/lib/analyzer/service";
+import { getAuthenticatedUser, validateProjectOwnership } from "@/lib/auth/utils";
 
 export async function POST(
   req: NextRequest,
@@ -10,28 +11,31 @@ export async function POST(
   const { projectId } = await params;
 
   try {
-    // 1. Check Project & Repository existence
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: { repository: true },
-    });
+    const user = await getAuthenticatedUser(req);
+    const ownership = await validateProjectOwnership(projectId, user.id);
 
-    if (!project || !project.repository) {
+    if (!ownership.isOwner || !ownership.project) {
       return NextResponse.json(
-        { success: false, error: "Project or connected repository not found." },
+        { success: false, error: ownership.error },
+        { status: ownership.status }
+      );
+    }
+
+    const project = ownership.project;
+    if (!project.repository) {
+      return NextResponse.json(
+        { success: false, error: "Connected repository details missing." },
         { status: 404 }
       );
     }
 
     const { owner, name: repoName, branch: targetBranch } = project.repository;
 
-    // 2. Mark project as ANALYZING
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "ANALYZING" },
     });
 
-    // 3. Fetch GitHub metadata & file tree
     let repoMetadata;
     try {
       repoMetadata = await gitHubService.getRepositoryMetadata(owner, repoName);
@@ -48,10 +52,7 @@ export async function POST(
           errorMessage: msg,
         },
       });
-      return NextResponse.json(
-        { success: false, error: msg },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: msg }, { status: 400 });
     }
 
     const activeBranch = targetBranch || repoMetadata.defaultBranch || "main";
@@ -71,13 +72,9 @@ export async function POST(
           errorMessage: msg,
         },
       });
-      return NextResponse.json(
-        { success: false, error: msg },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: msg }, { status: 400 });
     }
 
-    // 4. Identify key manifest files & selectively fetch contents
     const keyManifestPaths = [
       "package.json",
       "requirements.txt",
@@ -98,20 +95,18 @@ export async function POST(
             const content = await gitHubService.getFileContent(owner, repoName, fileMatch.path, activeBranch);
             manifestContents[fileMatch.path] = content;
           } catch {
-            // Ignore individual manifest fetch failure
+            // Ignore manifest fetch failure
           }
         }
       })
     );
 
-    // 5. Run Codebase Analyzer Engine
     const analysisResult = await codebaseAnalyzerService.analyzeRepositoryTree(
       projectId,
       fileNodes,
       manifestContents
     );
 
-    // 6. Persist Analysis into Prisma PostgreSQL
     const createdAnalysis = await prisma.analysis.create({
       data: {
         projectId,
@@ -137,7 +132,6 @@ export async function POST(
       },
     });
 
-    // 7. Update Project & Repository Status
     const primaryLangs = analysisResult.languages.map((l) => l.language);
 
     const updatedProject = await prisma.project.update({

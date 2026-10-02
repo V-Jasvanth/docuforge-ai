@@ -170,6 +170,7 @@ model DocumentationSection {
 
   documentation Documentation @relation(fields: [documentationId], references: [id], onDelete: Cascade)
 
+  @@unique([documentationId, key])
   @@index([documentationId])
   @@index([key])
   @@map("documentation_sections")

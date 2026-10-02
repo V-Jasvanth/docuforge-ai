@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { getAuthenticatedUser, validateProjectOwnership } from "@/lib/auth/utils";
 
 export async function GET(
   req: NextRequest,
@@ -7,6 +8,15 @@ export async function GET(
 ) {
   try {
     const { projectId } = await params;
+    const user = await getAuthenticatedUser(req);
+
+    const ownership = await validateProjectOwnership(projectId, user.id);
+    if (!ownership.isOwner || !ownership.project) {
+      return NextResponse.json(
+        { success: false, error: ownership.error },
+        { status: ownership.status }
+      );
+    }
 
     const project = await prisma.project.findUnique({
       where: { id: projectId },
@@ -31,14 +41,7 @@ export async function GET(
       },
     });
 
-    if (!project) {
-      return NextResponse.json(
-        { success: false, error: `Project '${projectId}' not found.` },
-        { status: 404 }
-      );
-    }
-
-    const latestAnalysis = project.analyses[0] || null;
+    const latestAnalysis = project?.analyses[0] || null;
 
     return NextResponse.json({
       success: true,

@@ -2,13 +2,14 @@ import type {
   DocSectionKey,
   DocumentationGenerationRequest,
   DocumentationDriftCheckResult,
-} from "./types";
-import { STANDARD_DOC_SECTIONS } from "./types";
-import { aiService } from "../ai/service";
-import { documentationContextBuilder } from "./context";
-import { sanitizeText } from "./sanitizer";
-import { prisma } from "../db/prisma";
-import type { CodebaseAnalysisResult } from "../analyzer/types";
+} from "./types.ts";
+import { STANDARD_DOC_SECTIONS } from "./types.ts";
+import { aiService } from "../ai/service.ts";
+import { documentationContextBuilder } from "./context.ts";
+import { sanitizeText } from "./sanitizer.ts";
+import { prisma } from "../db/prisma.ts";
+import type { CodebaseAnalysisResult } from "../analyzer/types.ts";
+import { mapImpactToDocSections } from "./drift.ts";
 
 export class DocumentationPipelineService {
   public validateGeneratedSection(content: string, sectionTitle: string): { isValid: boolean; reason?: string } {
@@ -48,7 +49,6 @@ export class DocumentationPipelineService {
     }
 
     const analysis = latestAnalysisRecord.summary as unknown as CodebaseAnalysisResult;
-
     const keysToGenerate: DocSectionKey[] = targetSections || STANDARD_DOC_SECTIONS.map((s) => s.key);
 
     let docRecord = await prisma.documentation.findFirst({
@@ -95,31 +95,34 @@ export class DocumentationPipelineService {
           throw new Error(validation.reason || "Validation failed");
         }
 
-        await prisma.documentationSection.upsert({
-          where: {
-            id: (
-              await prisma.documentationSection.findFirst({
-                where: { documentationId: docRecord.id, key },
-              })
-            )?.id || "new-section-id",
-          },
-          create: {
-            documentationId: docRecord.id,
-            key,
-            title: spec.title,
-            content: sanitizedContent,
-            status: "GENERATED",
-            order: spec.defaultOrder,
-            lastGeneratedAt: new Date(),
-          },
-          update: {
-            title: spec.title,
-            content: sanitizedContent,
-            status: "GENERATED",
-            order: spec.defaultOrder,
-            lastGeneratedAt: new Date(),
-          },
+        const existingSection = await prisma.documentationSection.findFirst({
+          where: { documentationId: docRecord.id, key },
         });
+
+        if (existingSection) {
+          await prisma.documentationSection.update({
+            where: { id: existingSection.id },
+            data: {
+              title: spec.title,
+              content: sanitizedContent,
+              status: "GENERATED",
+              order: spec.defaultOrder,
+              lastGeneratedAt: new Date(),
+            },
+          });
+        } else {
+          await prisma.documentationSection.create({
+            data: {
+              documentationId: docRecord.id,
+              key,
+              title: spec.title,
+              content: sanitizedContent,
+              status: "GENERATED",
+              order: spec.defaultOrder,
+              lastGeneratedAt: new Date(),
+            },
+          });
+        }
 
         generationResults.push({
           key,
@@ -160,15 +163,17 @@ export class DocumentationPipelineService {
       orderBy: { order: "asc" },
     });
 
-    await prisma.documentationVersion.create({
-      data: {
-        projectId,
-        version: docVersion,
-        changelog: `Generated ${allSections.length} documentation sections`,
-        createdBy: "DocuForge AI Engine",
-        snapshotData: JSON.parse(JSON.stringify(allSections)),
-      },
-    });
+    if (allSections.length > 0) {
+      await prisma.documentationVersion.create({
+        data: {
+          projectId,
+          version: docVersion,
+          changelog: `Generated ${allSections.length} documentation sections`,
+          createdBy: "DocuForge AI Engine",
+          snapshotData: JSON.parse(JSON.stringify(allSections)),
+        },
+      });
+    }
 
     return {
       projectId,
@@ -236,23 +241,29 @@ export class DocumentationPipelineService {
       where: { documentationId: docRecord.id, key: sectionKey },
     });
 
-    const updatedSection = await prisma.documentationSection.upsert({
-      where: { id: existingSection?.id || "new-section-id" },
-      create: {
-        documentationId: docRecord.id,
-        key: sectionKey,
-        title: spec.title,
-        content: sanitizedContent,
-        status: "GENERATED",
-        order: spec.defaultOrder,
-        lastGeneratedAt: new Date(),
-      },
-      update: {
-        content: sanitizedContent,
-        status: "GENERATED",
-        lastGeneratedAt: new Date(),
-      },
-    });
+    let updatedSection;
+    if (existingSection) {
+      updatedSection = await prisma.documentationSection.update({
+        where: { id: existingSection.id },
+        data: {
+          content: sanitizedContent,
+          status: "GENERATED",
+          lastGeneratedAt: new Date(),
+        },
+      });
+    } else {
+      updatedSection = await prisma.documentationSection.create({
+        data: {
+          documentationId: docRecord.id,
+          key: sectionKey,
+          title: spec.title,
+          content: sanitizedContent,
+          status: "GENERATED",
+          order: spec.defaultOrder,
+          lastGeneratedAt: new Date(),
+        },
+      });
+    }
 
     await prisma.activity.create({
       data: {
@@ -271,20 +282,9 @@ export class DocumentationPipelineService {
     projectId: string,
     changedFiles: string[]
   ): Promise<DocumentationDriftCheckResult> {
-    const affectedSections: DocSectionKey[] = [];
-
-    for (const file of changedFiles) {
-      const lower = file.toLowerCase();
-      if (lower.includes("/api/") || lower.includes("route.")) {
-        if (!affectedSections.includes("api_reference")) affectedSections.push("api_reference");
-      }
-      if (lower.includes("schema.prisma") || lower.includes("models")) {
-        if (!affectedSections.includes("database")) affectedSections.push("database");
-      }
-      if (lower.includes(".env") || lower.includes("config")) {
-        if (!affectedSections.includes("environment_variables")) affectedSections.push("environment_variables");
-      }
-    }
+    const fileChanges = changedFiles.map((f) => ({ path: f, status: "MODIFIED" as const }));
+    const impacts = mapImpactToDocSections(fileChanges);
+    const affectedSections = impacts.map((i) => i.sectionKey);
 
     return {
       projectId,

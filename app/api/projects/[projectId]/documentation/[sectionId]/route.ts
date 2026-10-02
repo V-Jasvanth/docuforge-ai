@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { updateDocSectionSchema } from "@/lib/validation";
 import { sanitizeText } from "@/lib/documentation/sanitizer";
+import { getAuthenticatedUser, validateProjectOwnership } from "@/lib/auth/utils";
 
 export async function PUT(
   req: NextRequest,
@@ -9,8 +10,14 @@ export async function PUT(
 ) {
   try {
     const { projectId, sectionId } = await params;
-    const body = await req.json();
+    const user = await getAuthenticatedUser(req);
 
+    const ownership = await validateProjectOwnership(projectId, user.id);
+    if (!ownership.isOwner) {
+      return NextResponse.json({ success: false, error: ownership.error }, { status: ownership.status });
+    }
+
+    const body = await req.json();
     const validationResult = updateDocSectionSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
@@ -26,7 +33,6 @@ export async function PUT(
     const { content, title } = validationResult.data;
     const sanitized = sanitizeText(content);
 
-    // Find section in DB
     const section = await prisma.documentationSection.findFirst({
       where: {
         key: sectionId,

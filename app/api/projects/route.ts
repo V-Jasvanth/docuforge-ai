@@ -1,31 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createProjectSchema } from "@/lib/validation";
+import { createProjectSchema, parseGitHubUrl } from "@/lib/validation";
 import { prisma } from "@/lib/db/prisma";
+
+async function getOrCreateDefaultUser() {
+  let user = await prisma.user.findFirst();
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        name: "Alex Vance",
+        email: "demo@docuforge.ai",
+        passwordHash: "$2b$10$demo_hash_placeholder",
+      },
+    });
+  }
+  return user;
+}
 
 export async function GET(req: NextRequest) {
   try {
-    // Demo / Foundation query response
-    const mockProjects = [
-      {
-        id: "demo-1",
-        name: "FlowBoard SaaS",
-        description: "Interactive kanban and workflow management platform",
-        status: "READY",
-        framework: "Next.js",
-        docVersion: "1.0.0",
-        createdAt: new Date().toISOString(),
+    const user = await getOrCreateDefaultUser();
+
+    const projects = await prisma.project.findMany({
+      where: { userId: user.id },
+      include: {
+        repository: true,
+        analyses: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
-    ];
+      orderBy: { updatedAt: "desc" },
+    });
 
     return NextResponse.json({
       success: true,
-      data: mockProjects,
+      data: projects.map((p) => {
+        const latestAnalysis = p.analyses[0];
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          framework: p.framework || latestAnalysis?.detectedFramework || "Unknown",
+          languages: p.languages.length > 0 ? p.languages : latestAnalysis?.detectedLanguages || [],
+          status: p.status,
+          docVersion: p.docVersion,
+          lastAnalyzedAt: p.lastAnalyzedAt,
+          repository: p.repository
+            ? {
+                name: p.repository.name,
+                owner: p.repository.owner,
+                url: p.repository.url,
+                branch: p.repository.branch,
+              }
+            : null,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        };
+      }),
     });
   } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to fetch projects";
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch projects list",
+        error: message,
       },
       { status: 500 }
     );
@@ -51,31 +89,91 @@ export async function POST(req: NextRequest) {
 
     const { name, repositoryUrl, branch, framework, description } = validationResult.data;
 
-    // 2. Foundation Creation Logic
-    const newProject = {
-      id: `proj_${Date.now()}`,
-      name,
-      repositoryUrl,
-      branch,
-      framework: framework || "Next.js",
-      description: description || null,
-      status: "ANALYZING",
-      createdAt: new Date().toISOString(),
-    };
+    // 2. Extract GitHub repository info
+    const parsedGitUrl = parseGitHubUrl(repositoryUrl);
+    if (!parsedGitUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid GitHub repository URL. Must be a valid github.com repository.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const user = await getOrCreateDefaultUser();
+
+    // 3. Duplicate check for same user & repository
+    const existingRepo = await prisma.repository.findFirst({
+      where: {
+        owner: parsedGitUrl.owner,
+        name: parsedGitUrl.repo,
+        project: {
+          userId: user.id,
+        },
+      },
+      include: {
+        project: true,
+      },
+    });
+
+    if (existingRepo && existingRepo.project) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Repository is already connected to an existing project.",
+          data: existingRepo.project,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 4. Create Project & Repository records in Prisma
+    const project = await prisma.project.create({
+      data: {
+        userId: user.id,
+        name,
+        description: description || null,
+        framework: framework || null,
+        status: "IDLE",
+        repository: {
+          create: {
+            name: parsedGitUrl.repo,
+            owner: parsedGitUrl.owner,
+            url: parsedGitUrl.url,
+            branch: branch || "main",
+            provider: "github",
+            isConnected: true,
+          },
+        },
+        activities: {
+          create: {
+            userId: user.id,
+            type: "PROJECT_CREATED",
+            title: "Project Connected",
+            description: `Connected GitHub repository ${parsedGitUrl.owner}/${parsedGitUrl.repo}`,
+          },
+        },
+      },
+      include: {
+        repository: true,
+      },
+    });
 
     return NextResponse.json(
       {
         success: true,
-        message: "Project created and queued for codebase analysis",
-        data: newProject,
+        message: "Project created successfully",
+        data: project,
       },
       { status: 201 }
     );
   } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal server error creating project";
     return NextResponse.json(
       {
         success: false,
-        error: "Internal server error creating project",
+        error: message,
       },
       { status: 500 }
     );

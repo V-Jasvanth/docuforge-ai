@@ -1,68 +1,40 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { FolderGit2, Plus, Search, Filter, GitBranch, ArrowRight, ExternalLink } from "lucide-react";
+import { FolderGit2, Plus, Search, GitBranch, ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Progress } from "@/components/ui/Progress";
 
 export default function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [projects, setProjects] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const projects = [
-    {
-      id: "demo-1",
-      name: "FlowBoard SaaS",
-      repo: "V-Jasvanth/Flowboard-Saas",
-      stack: "Next.js · React · Node.js",
-      framework: "Next.js 15",
-      coverage: 82,
-      lastAnalyzed: "10 mins ago",
-      status: "READY",
-      description: "Interactive kanban and workflow management platform for modern engineering teams.",
-    },
-    {
-      id: "demo-2",
-      name: "InvestoDeck",
-      repo: "V-Jasvanth/InvestoDeck-API",
-      stack: "Python · Flask · PostgreSQL",
-      framework: "Flask",
-      coverage: 64,
-      lastAnalyzed: "2 days ago",
-      status: "NEEDS_REVIEW",
-      description: "Financial modeling and portfolio analytics backend service.",
-    },
-    {
-      id: "demo-3",
-      name: "DevHub Analytics",
-      repo: "V-Jasvanth/DevHub-Core",
-      stack: "TypeScript · Go · Redis",
-      framework: "Custom Go Service",
-      coverage: 45,
-      lastAnalyzed: "5 hours ago",
-      status: "ANALYZING",
-      description: "High-throughput developer metrics and commit velocity aggregator.",
-    },
-    {
-      id: "demo-4",
-      name: "DocuForge AI",
-      repo: "V-Jasvanth/DocuForge-AI",
-      stack: "Next.js 15 · Tailwind · Prisma",
-      framework: "Next.js App Router",
-      coverage: 100,
-      lastAnalyzed: "Just now",
-      status: "READY",
-      description: "Understand, document, and maintain your codebase with AI.",
-    },
-  ];
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const res = await fetch("/api/projects");
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setProjects(json.data);
+        }
+      } catch {
+        // Fallback gracefully
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadProjects();
+  }, []);
 
   const filtered = projects.filter(
     (p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.repo.toLowerCase().includes(searchTerm.toLowerCase())
+      (p.repository?.owner && p.repository.owner.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.repository?.name && p.repository.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -98,46 +70,90 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Project Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filtered.map((proj) => (
-          <Card key={proj.id} className="p-6 space-y-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 hover:text-brand-600 transition-colors">
-                  <Link href={`/projects/${proj.id}`}>{proj.name}</Link>
-                </h3>
-                <span className="font-mono text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                  <GitBranch className="h-3 w-3" /> {proj.repo}
-                </span>
-              </div>
-              <Badge variant={proj.status === "READY" ? "success" : proj.status === "NEEDS_REVIEW" ? "warning" : "secondary"}>
-                {proj.status.replace("_", " ")}
-              </Badge>
-            </div>
+      {/* Loading state */}
+      {isLoading ? (
+        <div className="p-8 text-center text-xs text-slate-500 flex items-center justify-center space-x-2">
+          <RefreshCw className="h-4 w-4 animate-spin text-brand-500" />
+          <span>Loading projects from database...</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-8 text-center space-y-3">
+          <FolderGit2 className="h-8 w-8 text-slate-400 mx-auto" />
+          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">No Projects Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Connect your first public GitHub repository to start scanning codebases and generating AI documentation.
+          </p>
+          <Link href="/projects/new">
+            <Button size="sm" className="mt-2 space-x-1">
+              <Plus className="h-3.5 w-3.5" />
+              <span>Connect Repository</span>
+            </Button>
+          </Link>
+        </Card>
+      ) : (
+        /* Project Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filtered.map((proj) => {
+            const repoStr = proj.repository
+              ? `${proj.repository.owner}/${proj.repository.name}`
+              : "No Repository Connected";
+            const coverage = proj.status === "READY" ? 100 : proj.status === "ANALYZING" ? 40 : 0;
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{proj.description}</p>
-
-            <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-              <div className="flex justify-between text-xs font-medium">
-                <span className="text-slate-500">Documentation Coverage</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{proj.coverage}%</span>
-              </div>
-              <Progress value={proj.coverage} />
-            </div>
-
-            <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
-              <span>Stack: <strong className="text-slate-700 dark:text-slate-300 font-medium">{proj.framework}</strong></span>
-              <Link
-                href={`/projects/${proj.id}`}
-                className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 flex items-center gap-1"
+            return (
+              <Card
+                key={proj.id}
+                className="p-6 space-y-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
               >
-                Open Workspace <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          </Card>
-        ))}
-      </div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 hover:text-brand-600 transition-colors">
+                      <Link href={`/projects/${proj.id}`}>{proj.name}</Link>
+                    </h3>
+                    <span className="font-mono text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                      <GitBranch className="h-3 w-3" /> {repoStr}
+                    </span>
+                  </div>
+                  <Badge
+                    variant={
+                      proj.status === "READY"
+                        ? "success"
+                        : proj.status === "ANALYZING"
+                        ? "secondary"
+                        : "outline"
+                    }
+                  >
+                    {proj.status}
+                  </Badge>
+                </div>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                  {proj.description || "No description provided."}
+                </p>
+
+                <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-slate-500">Analysis Completeness</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{coverage}%</span>
+                  </div>
+                  <Progress value={coverage} />
+                </div>
+
+                <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
+                  <span>
+                    Stack: <strong className="text-slate-700 dark:text-slate-300 font-medium">{proj.framework}</strong>
+                  </span>
+                  <Link
+                    href={`/projects/${proj.id}`}
+                    className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 flex items-center gap-1"
+                  >
+                    Open Workspace <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

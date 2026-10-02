@@ -1,11 +1,13 @@
 export type FileCategory =
   | "CONFIG"
-  | "SOURCE_CODE"
-  | "API_ROUTE"
-  | "DATABASE_SCHEMA"
+  | "SOURCE"
+  | "API"
+  | "DATABASE"
   | "DOCUMENTATION"
   | "TEST"
-  | "ASSET"
+  | "STYLES"
+  | "COMPONENT"
+  | "UTILITY"
   | "UNKNOWN";
 
 export interface AnalyzedFileMetadata {
@@ -44,25 +46,45 @@ export interface DetectedDbModel {
   sourceFile: string;
 }
 
+export interface LanguageBreakdown {
+  language: string;
+  fileCount: number;
+  percentage: number;
+}
+
+export interface ParsedManifestResult {
+  manifestPath: string;
+  packageManager?: string;
+  dependencies: DetectedDependency[];
+  frameworkIndicators: string[];
+  databaseIndicators: string[];
+  runtime?: string;
+}
+
 export interface CodebaseAnalysisResult {
   projectId: string;
   analyzedAt: Date;
-  totalFilesCount: number;
+  totalFileCount: number;
+  sourceFileCount: number;
   scannedFilesCount: number;
-  ignoredFilesCount: number;
-  totalLinesOfCode: number;
-  primaryLanguages: Array<{ language: string; percentage: number; fileCount: number }>;
+  ignoredFileCount: number;
+  estimatedLinesOfCode: number;
+  languages: LanguageBreakdown[];
   framework?: DetectedFramework;
+  packageManagers: string[];
   dependencies: DetectedDependency[];
   apiRoutes: DetectedApiRoute[];
+  databases: string[];
   databaseModels: DetectedDbModel[];
-  directoryStructureTree: Record<string, unknown>;
+  documentationFiles: string[];
+  detectedFeatures: string[];
+  analysisWarnings: string[];
   fileMetadataList: AnalyzedFileMetadata[];
   status: "COMPLETED" | "PARTIAL" | "FAILED";
 }
 
 export interface AnalyzerConfig {
-  maxFileSizeBytes: number; // e.g. 500KB
+  maxFileSizeBytes: number; // e.g. 512KB
   ignoredDirectories: string[];
   ignoredExtensions: string[];
 }

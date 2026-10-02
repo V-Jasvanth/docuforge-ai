@@ -1,5 +1,7 @@
-import { AIProvider } from "./provider";
-import { UnconfiguredAIProvider } from "./placeholder-provider";
+import { AIProvider } from "./provider.ts";
+import { UnconfiguredAIProvider } from "./placeholder-provider.ts";
+import { GenericAIProvider } from "./generic-provider.ts";
+import { DeterministicDocProvider } from "./deterministic-provider.ts";
 import {
   AIGenerateOptions,
   AISummarizeOptions,
@@ -7,7 +9,7 @@ import {
   AIDocGenerationRequest,
   AIDocGenerationResponse,
   AIProviderStatus,
-} from "./types";
+} from "./types.ts";
 
 export class AIService {
   private static instance: AIService;
@@ -26,14 +28,14 @@ export class AIService {
 
   private resolveProvider(): AIProvider {
     const apiKey = process.env.AI_API_KEY;
-    const providerName = process.env.AI_PROVIDER || "mock";
+    const providerName = (process.env.AI_PROVIDER || "mock").toLowerCase();
+    const modelName = process.env.AI_MODEL_NAME;
 
-    if (!apiKey || apiKey.trim() === "" || providerName === "mock") {
-      return new UnconfiguredAIProvider();
+    if (apiKey && apiKey.trim() !== "" && providerName !== "mock") {
+      return new GenericAIProvider(apiKey, providerName, modelName);
     }
 
-    // Provider switching architecture ready for OpenAI, Anthropic, Gemini, etc.
-    return new UnconfiguredAIProvider();
+    return new DeterministicDocProvider();
   }
 
   public async getStatus(): Promise<AIProviderStatus> {

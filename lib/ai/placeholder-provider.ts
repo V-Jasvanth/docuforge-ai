@@ -1,4 +1,4 @@
-import { AIProvider } from "./provider";
+import { AIProvider } from "./provider.ts";
 import {
   AIGenerateOptions,
   AISummarizeOptions,
@@ -6,7 +6,7 @@ import {
   AIDocGenerationRequest,
   AIDocGenerationResponse,
   AIProviderStatus,
-} from "./types";
+} from "./types.ts";
 
 export class UnconfiguredAIProvider implements AIProvider {
   public name = "Unconfigured AI Provider";

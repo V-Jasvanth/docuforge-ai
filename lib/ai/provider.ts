@@ -5,7 +5,7 @@ import {
   AIDocGenerationRequest,
   AIDocGenerationResponse,
   AIProviderStatus,
-} from "./types";
+} from "./types.ts";
 
 export interface AIProvider {
   name: string;

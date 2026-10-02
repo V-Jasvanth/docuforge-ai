@@ -133,7 +133,7 @@ export default function ProjectWorkspacePage() {
         {activeTab === "overview" && <OverviewTab analysis={analysisData} projectName={projectName} />}
         {activeTab === "repository" && <RepositoryTab repository={projectData?.repository} analysis={analysisData} />}
         {activeTab === "analysis" && <AnalysisTab analysis={analysisData} isLoading={isLoading} />}
-        {activeTab === "documentation" && <DocumentationTab />}
+        {activeTab === "documentation" && <DocumentationTab projectId={projectId} />}
         {activeTab === "changes" && <ChangesTab />}
         {activeTab === "settings" && <SettingsTab />}
       </div>

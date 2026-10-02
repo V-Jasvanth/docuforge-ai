@@ -14,6 +14,11 @@ import {
   Eye,
   Loader2,
   AlertCircle,
+  Download,
+  FileArchive,
+  FileType,
+  History,
+  AlertTriangle,
 } from "lucide-react";
 import { getStatusBadgeColor } from "@/lib/utils";
 
@@ -24,10 +29,12 @@ export interface DocumentationTabProps {
 export function DocumentationTab({ projectId }: DocumentationTabProps) {
   const [selectedSectionKey, setSelectedSectionKey] = useState<DocSectionKey>("readme");
   const [sectionsMap, setSectionsMap] = useState<Record<string, { id?: string; content: string; status: string; lastGeneratedAt?: string }>>({});
+  const [versions, setVersions] = useState<Array<{ id: string; version: string; createdAt: string; changelog?: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [generationStep, setGenerationStep] = useState<string | null>(null);
   const [isRegeneratingSection, setIsRegeneratingSection] = useState(false);
+  const [isRegeneratingOutdated, setIsRegeneratingOutdated] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedContent, setEditedContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -51,6 +58,13 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
         });
         setSectionsMap(map);
       }
+
+      // Fetch version history
+      const vRes = await fetch(`/api/projects/${projectId}/documentation/versions`);
+      const vJson = await vRes.json();
+      if (vRes.ok && vJson.data) {
+        setVersions(vJson.data);
+      }
     } catch {
       // Fallback cleanly
     } finally {
@@ -68,6 +82,8 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
     status: "NOT_GENERATED",
     lastGeneratedAt: undefined,
   };
+
+  const outdatedCount = Object.values(sectionsMap).filter((s) => s.status === "OUTDATED" || s.status === "NEEDS_REVIEW").length;
 
   useEffect(() => {
     setEditedContent(activeSectionData.content || `# ${activeSpec?.title || "Section"}\n\nNot generated yet. Click "Generate All Documentation" or "Regenerate AI" to build this section.`);
@@ -118,6 +134,30 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
     } finally {
       setIsGeneratingAll(false);
       setGenerationStep(null);
+    }
+  };
+
+  const handleRegenerateOutdated = async () => {
+    if (!projectId || isRegeneratingOutdated) return;
+    setIsRegeneratingOutdated(true);
+    setNotification(null);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/documentation/drift/regenerate-outdated`, {
+        method: "POST",
+      });
+      const json = await res.json();
+
+      if (res.ok && json.success) {
+        setNotification({ type: "success", message: json.message || "Regenerated outdated sections!" });
+        await fetchDocumentation();
+      } else {
+        setNotification({ type: "error", message: json.error || "Failed to regenerate outdated sections." });
+      }
+    } catch {
+      setNotification({ type: "error", message: "Network error regenerating outdated sections." });
+    } finally {
+      setIsRegeneratingOutdated(false);
     }
   };
 
@@ -172,13 +212,47 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
       }
     } catch {
       setNotification({ type: "error", message: "Network error saving edits." });
-    } finally {
+    } font-sans finally {
       setIsSaving(false);
     }
   };
 
+  const triggerExport = (format: "readme" | "zip" | "pdf") => {
+    window.open(`/api/projects/${projectId}/documentation/export/${format}`, "_blank");
+  };
+
   return (
     <div className="space-y-6">
+      {/* Export & Action Header Toolbar */}
+      <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-brand-500" />
+            Documentation Exports & Tools
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Export complete documentation bundle as Markdown, ZIP, or PDF.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => triggerExport("readme")} className="text-xs space-x-1">
+            <Download className="h-3.5 w-3.5" />
+            <span>Export README.md</span>
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => triggerExport("zip")} className="text-xs space-x-1">
+            <FileArchive className="h-3.5 w-3.5" />
+            <span>Export ZIP</span>
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => triggerExport("pdf")} className="text-xs space-x-1">
+            <FileType className="h-3.5 w-3.5" />
+            <span>Export PDF</span>
+          </Button>
+        </div>
+      </div>
+
       {/* Notifications */}
       {notification && (
         <div
@@ -198,6 +272,22 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
         </div>
       )}
 
+      {/* Outdated Sections Banner */}
+      {outdatedCount > 0 && (
+        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+            <span>
+              <strong>{outdatedCount} section(s)</strong> are marked as outdated due to recent code changes.
+            </span>
+          </div>
+          <Button size="sm" onClick={handleRegenerateOutdated} isLoading={isRegeneratingOutdated} className="h-7 text-xs space-x-1">
+            <RefreshCw className="h-3 w-3" />
+            <span>Regenerate Outdated</span>
+          </Button>
+        </div>
+      )}
+
       {/* Progress Notification Banner during Generate All */}
       {isGeneratingAll && (
         <div className="p-4 rounded-xl border border-brand-500/20 bg-brand-500/10 text-brand-600 dark:text-brand-300 text-xs flex items-center space-x-3 animate-pulse">
@@ -210,8 +300,8 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Sidebar Section List */}
-        <div className="lg:col-span-4 space-y-3">
+        {/* Sidebar Section List & Version History */}
+        <div className="lg:col-span-4 space-y-4">
           <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
             <div className="flex items-center justify-between px-2 pt-1">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -255,6 +345,24 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
               })}
             </div>
           </div>
+
+          {/* Version Snapshots Card */}
+          {versions.length > 0 && (
+            <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 text-xs">
+              <h4 className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 px-1 pt-1">
+                <History className="h-3.5 w-3.5 text-brand-500" />
+                Version History ({versions.length})
+              </h4>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {versions.map((ver) => (
+                  <div key={ver.id} className="p-2 rounded bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="font-mono font-bold text-brand-600 dark:text-brand-400">v{ver.version}</span>
+                    <span className="text-slate-400">{new Date(ver.createdAt).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Main Documentation Editor / Viewer Workspace */}

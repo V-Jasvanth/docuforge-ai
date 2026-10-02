@@ -1,4 +1,6 @@
 import assert from "node:assert";
+import { compareAnalyses, mapImpactToDocSections } from "../lib/documentation/drift.ts";
+import { createZipBuffer } from "../lib/documentation/export.ts";
 
 // 1. Secret Sanitizer Test Logic
 function sanitizeText(input) {
@@ -99,7 +101,7 @@ function validateGeneratedSection(content, sectionTitle) {
 }
 
 function runAllTests() {
-  console.log("🧪 Executing DocuForge AI Phase 2 & Phase 3 Unit Tests...\n");
+  console.log("🧪 Executing DocuForge AI Full Suite Unit Tests (Phases 2, 3, & 4)...\n");
 
   // Test 1: GitHub URL Parsing
   console.log("Test 1: GitHub URL Parsing");
@@ -134,20 +136,54 @@ function runAllTests() {
   assert.strictEqual(cleanObj.name, "Public App");
   console.log("  ✓ Secret Sanitizer tests passed!\n");
 
-  // Test 5: AI Context & Hallucination Control Prompts (Phase 3)
-  console.log("Test 5: Hallucination Control Rules & Prompts");
-  const systemPrompt = "CRITICAL HALLUCINATION CONTROL RULES: 1. Ground every statement in context. 2. DO NOT invent API routes.";
-  assert.strictEqual(systemPrompt.includes("CRITICAL HALLUCINATION CONTROL RULES"), true);
-  assert.strictEqual(systemPrompt.includes("DO NOT invent API routes"), true);
-  console.log("  ✓ Hallucination Control prompt tests passed!\n");
-
-  // Test 6: Documentation Output Validation (Phase 3)
-  console.log("Test 6: Documentation Output Validation");
+  // Test 5: Documentation Output Validation (Phase 3)
+  console.log("Test 5: Documentation Output Validation");
   assert.strictEqual(validateGeneratedSection("# README Title\n\nFull technical content.", "README").isValid, true);
   assert.strictEqual(validateGeneratedSection("too short", "README").isValid, false);
   console.log("  ✓ Documentation Output Validation tests passed!\n");
 
-  console.log("🎉 All DocuForge AI Phase 2 & Phase 3 Unit Tests Passed Successfully!");
+  // Test 6: Documentation Drift Analysis (Phase 4)
+  console.log("Test 6: Documentation Drift Analysis & Change Comparison");
+  const prevAnalysis = {
+    filesTree: [
+      { path: "app/api/route.ts", size: 100 },
+      { path: "prisma/schema.prisma", size: 200 },
+      { path: "old-file.ts", size: 50 },
+    ],
+  };
+  const currAnalysis = {
+    filesTree: [
+      { path: "app/api/route.ts", size: 180 }, // modified
+      { path: "prisma/schema.prisma", size: 200 }, // unchanged
+      { path: "src/new-feature.ts", size: 120 }, // added
+      // old-file.ts removed
+    ],
+  };
+
+  const fileChanges = compareAnalyses(prevAnalysis, currAnalysis);
+  assert.strictEqual(fileChanges.length, 3);
+  assert.strictEqual(fileChanges.find((c) => c.path === "app/api/route.ts").status, "MODIFIED");
+  assert.strictEqual(fileChanges.find((c) => c.path === "src/new-feature.ts").status, "ADDED");
+  assert.strictEqual(fileChanges.find((c) => c.path === "old-file.ts").status, "REMOVED");
+
+  const impacts = mapImpactToDocSections(fileChanges);
+  const apiImpact = impacts.find((i) => i.sectionKey === "api_reference");
+  assert.notStrictEqual(apiImpact, undefined);
+  assert.strictEqual(apiImpact.changedFiles.includes("app/api/route.ts"), true);
+  console.log("  ✓ Drift Analysis & Impact Mapping tests passed!\n");
+
+  // Test 7: Export ZIP Buffer Creation (Phase 4)
+  console.log("Test 7: ZIP Buffer Generation");
+  const sampleFiles = [
+    { filename: "README.md", content: "# Sample Readme" },
+    { filename: "docs/01-overview.md", content: "# Overview" },
+  ];
+  const zipBuf = createZipBuffer(sampleFiles);
+  assert.strictEqual(zipBuf.readUInt32LE(0), 0x04034b50); // PK\x03\x04
+  assert.strictEqual(zipBuf.length > 50, true);
+  console.log("  ✓ ZIP Export Buffer tests passed!\n");
+
+  console.log("🎉 All DocuForge AI Phase 2, 3 & 4 Unit Tests Passed Successfully!");
 }
 
 runAllTests();

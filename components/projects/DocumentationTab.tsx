@@ -19,6 +19,7 @@ import {
   FileType,
   History,
   AlertTriangle,
+  Activity,
 } from "lucide-react";
 import { getStatusBadgeColor } from "@/lib/utils";
 
@@ -83,7 +84,22 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
     lastGeneratedAt: undefined,
   };
 
-  const outdatedCount = Object.values(sectionsMap).filter((s) => s.status === "OUTDATED" || s.status === "NEEDS_REVIEW").length;
+  // Documentation Health Summary Metrics
+  const totalSections = STANDARD_DOC_SECTIONS.length;
+  const generatedCount = Object.values(sectionsMap).filter((s) => s.status === "GENERATED").length;
+  const outdatedCount = Object.values(sectionsMap).filter((s) => s.status === "OUTDATED").length;
+  const needsReviewCount = Object.values(sectionsMap).filter((s) => s.status === "NEEDS_REVIEW").length;
+
+  const timestamps = Object.values(sectionsMap)
+    .map((s) => (s.lastGeneratedAt ? new Date(s.lastGeneratedAt).getTime() : 0))
+    .filter((t) => t > 0);
+
+  const latestTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : null;
+  const lastUpdatedTimeStr = latestTimestamp
+    ? new Date(latestTimestamp).toLocaleString()
+    : versions.length > 0 && versions[0]?.createdAt
+    ? new Date(versions[0].createdAt).toLocaleString()
+    : "Not updated yet";
 
   useEffect(() => {
     setEditedContent(activeSectionData.content || `# ${activeSpec?.title || "Section"}\n\nNot generated yet. Click "Generate All Documentation" or "Regenerate AI" to build this section.`);
@@ -212,7 +228,7 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
       }
     } catch {
       setNotification({ type: "error", message: "Network error saving edits." });
-    } font-sans finally {
+    } finally {
       setIsSaving(false);
     }
   };
@@ -223,6 +239,51 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Documentation Health Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+          <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium">
+            <FileText className="h-3.5 w-3.5 text-slate-400" />
+            <span>Total Sections</span>
+          </div>
+          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{totalSections}</div>
+        </div>
+
+        <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+          <div className="flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span>Generated</span>
+          </div>
+          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{generatedCount}</div>
+        </div>
+
+        <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+          <div className="flex items-center space-x-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span>Outdated</span>
+          </div>
+          <div className="text-lg font-bold text-amber-600 dark:text-amber-400">{outdatedCount}</div>
+        </div>
+
+        <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+          <div className="flex items-center space-x-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+            <Activity className="h-3.5 w-3.5" />
+            <span>Needs Review</span>
+          </div>
+          <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{needsReviewCount}</div>
+        </div>
+
+        <div className="col-span-2 sm:col-span-1 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+          <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium">
+            <History className="h-3.5 w-3.5 text-slate-400" />
+            <span>Last Updated</span>
+          </div>
+          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate" title={lastUpdatedTimeStr}>
+            {lastUpdatedTimeStr}
+          </div>
+        </div>
+      </div>
+
       {/* Export & Action Header Toolbar */}
       <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

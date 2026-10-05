@@ -22,6 +22,8 @@ import {
   Activity,
   X,
   Filter,
+  Copy,
+  Check,
 } from "lucide-react";
 import { getStatusBadgeColor } from "@/lib/utils";
 
@@ -42,6 +44,7 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedContent, setEditedContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isCopiedSummary, setIsCopiedSummary] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const fetchDocumentation = useCallback(async () => {
@@ -115,6 +118,35 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
     setEditedContent(activeSectionData.content || `# ${activeSpec?.title || "Section"}\n\nNot generated yet. Click "Generate All Documentation" or "Regenerate AI" to build this section.`);
     setIsEditMode(false);
   }, [selectedSectionKey, activeSectionData.content, activeSpec?.title]);
+
+  const handleCopyHealthSummary = async () => {
+    const summaryText = [
+      "DocuForge AI — Documentation Health",
+      "",
+      `Total Sections: ${totalSections}`,
+      `Generated: ${generatedCount}`,
+      `Outdated: ${outdatedCount}`,
+      `Needs Review: ${needsReviewCount}`,
+      `Last Updated: ${lastUpdatedTimeStr}`,
+    ].join("\n");
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(summaryText);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = summaryText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setIsCopiedSummary(true);
+      setTimeout(() => setIsCopiedSummary(false), 2000);
+    } catch {
+      setNotification({ type: "error", message: "Failed to copy health summary to clipboard." });
+    }
+  };
 
   const handleGenerateAll = async () => {
     if (!projectId || isGeneratingAll) return;
@@ -249,96 +281,124 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Documentation Health Summary (Interactive Filter Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {/* Total Sections Card */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter(null)}
-          className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-            statusFilter === null
-              ? "border-brand-500 ring-2 ring-brand-500/20 bg-brand-50/20 dark:bg-brand-950/20"
-              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <div className="flex items-center space-x-1.5">
-              <FileText className="h-3.5 w-3.5 text-slate-400" />
-              <span>Total Sections</span>
-            </div>
-            {statusFilter === null && <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />}
-          </div>
-          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{totalSections}</div>
-        </button>
+      {/* Documentation Health Section Header & Copy Button */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <Activity className="h-3.5 w-3.5 text-brand-500" />
+            <span>Documentation Health</span>
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyHealthSummary}
+            className="text-xs h-7 px-2.5 space-x-1"
+          >
+            {isCopiedSummary ? (
+              <>
+                <Check className="h-3 w-3 text-emerald-500" />
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3 text-slate-400" />
+                <span>Copy Summary</span>
+              </>
+            )}
+          </Button>
+        </div>
 
-        {/* Generated Count Card */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter("GENERATED")}
-          className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-            statusFilter === "GENERATED"
-              ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/20"
-              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-            <div className="flex items-center space-x-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Generated</span>
+        {/* Documentation Health Summary (Interactive Filter Cards) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {/* Total Sections Card */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter(null)}
+            className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+              statusFilter === null
+                ? "border-brand-500 ring-2 ring-brand-500/20 bg-brand-50/20 dark:bg-brand-950/20"
+                : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+              <div className="flex items-center space-x-1.5">
+                <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <span>Total Sections</span>
+              </div>
+              {statusFilter === null && <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />}
             </div>
-            {statusFilter === "GENERATED" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-          </div>
-          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{generatedCount}</div>
-        </button>
+            <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{totalSections}</div>
+          </button>
 
-        {/* Outdated Count Card */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter("OUTDATED")}
-          className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-            statusFilter === "OUTDATED"
-              ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20 dark:bg-amber-950/20"
-              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-medium">
-            <div className="flex items-center space-x-1.5">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              <span>Outdated</span>
+          {/* Generated Count Card */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter("GENERATED")}
+            className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+              statusFilter === "GENERATED"
+                ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/20"
+                : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              <div className="flex items-center space-x-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Generated</span>
+              </div>
+              {statusFilter === "GENERATED" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
             </div>
-            {statusFilter === "OUTDATED" && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-          </div>
-          <div className="text-lg font-bold text-amber-600 dark:text-amber-400">{outdatedCount}</div>
-        </button>
+            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{generatedCount}</div>
+          </button>
 
-        {/* Needs Review Count Card */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter("NEEDS_REVIEW")}
-          className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            statusFilter === "NEEDS_REVIEW"
-              ? "border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20 dark:bg-blue-950/20"
-              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-blue-600 dark:text-blue-400 font-medium">
-            <div className="flex items-center space-x-1.5">
-              <Activity className="h-3.5 w-3.5" />
-              <span>Needs Review</span>
+          {/* Outdated Count Card */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter("OUTDATED")}
+            className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+              statusFilter === "OUTDATED"
+                ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20 dark:bg-amber-950/20"
+                : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-medium">
+              <div className="flex items-center space-x-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span>Outdated</span>
+              </div>
+              {statusFilter === "OUTDATED" && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
             </div>
-            {statusFilter === "NEEDS_REVIEW" && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />}
-          </div>
-          <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{needsReviewCount}</div>
-        </button>
+            <div className="text-lg font-bold text-amber-600 dark:text-amber-400">{outdatedCount}</div>
+          </button>
 
-        {/* Last Updated Display Card */}
-        <div className="col-span-2 sm:col-span-1 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
-          <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium">
-            <History className="h-3.5 w-3.5 text-slate-400" />
-            <span>Last Updated</span>
-          </div>
-          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate" title={lastUpdatedTimeStr}>
-            {lastUpdatedTimeStr}
+          {/* Needs Review Count Card */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter("NEEDS_REVIEW")}
+            className={`p-3 bg-white dark:bg-slate-900 border rounded-xl space-y-1 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              statusFilter === "NEEDS_REVIEW"
+                ? "border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20 dark:bg-blue-950/20"
+                : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-blue-600 dark:text-blue-400 font-medium">
+              <div className="flex items-center space-x-1.5">
+                <Activity className="h-3.5 w-3.5" />
+                <span>Needs Review</span>
+              </div>
+              {statusFilter === "NEEDS_REVIEW" && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />}
+            </div>
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{needsReviewCount}</div>
+          </button>
+
+          {/* Last Updated Display Card */}
+          <div className="col-span-2 sm:col-span-1 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+            <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium">
+              <History className="h-3.5 w-3.5 text-slate-400" />
+              <span>Last Updated</span>
+            </div>
+            <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate" title={lastUpdatedTimeStr}>
+              {lastUpdatedTimeStr}
+            </div>
           </div>
         </div>
       </div>

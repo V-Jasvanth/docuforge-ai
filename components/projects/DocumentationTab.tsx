@@ -401,6 +401,32 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
             </div>
           </div>
         </div>
+
+        {/* Status Legend */}
+        <div className="pt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/60">
+          <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider">Legend:</span>
+          <div className="flex items-center space-x-1.5">
+            <span className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <CheckCircle2 className="h-3 w-3" />
+              GENERATED
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">Documentation is current.</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <AlertTriangle className="h-3 w-3" />
+              OUTDATED
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">Code changes may have affected this section.</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+              <Activity className="h-3 w-3" />
+              NEEDS_REVIEW
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">Manual review is recommended.</span>
+          </div>
+        </div>
       </div>
 
       {/* Export & Action Header Toolbar */}

@@ -105,7 +105,18 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
     ? new Date(latestTimestamp).toLocaleString()
     : versions.length > 0 && versions[0]?.createdAt
     ? new Date(versions[0].createdAt).toLocaleString()
-    : "Not updated yet";
+  const getStatusTooltip = (status: string): string => {
+    switch (status) {
+      case "GENERATED":
+        return "Documentation is current";
+      case "OUTDATED":
+        return "Code changes may have affected this section";
+      case "NEEDS_REVIEW":
+        return "Manual review is recommended";
+      default:
+        return "Section has not been generated yet";
+    }
+  };
 
   // Filtered Sidebar Sections
   const filteredDocSections = STANDARD_DOC_SECTIONS.filter((sec) => {
@@ -556,7 +567,11 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
                         <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         <span className="truncate">{sec.title}</span>
                       </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${getStatusBadgeColor(state.status)}`}>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 cursor-help ${getStatusBadgeColor(state.status)}`}
+                        title={getStatusTooltip(state.status)}
+                        aria-label={`Status: ${state.status.replace("_", " ")} - ${getStatusTooltip(state.status)}`}
+                      >
                         {state.status.replace("_", " ")}
                       </span>
                     </button>
@@ -645,8 +660,16 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
             <CardContent className="p-6 flex-1 space-y-4">
               <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200/60 dark:border-slate-700/50">
                 <div className="flex items-center space-x-3">
-                  <span>
-                    Status: <strong className="text-slate-900 dark:text-slate-100">{activeSectionData.status.replace("_", " ")}</strong>
+                  <span className="flex items-center gap-1.5">
+                    <span>Status:</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 font-semibold cursor-help ${getStatusBadgeColor(activeSectionData.status)}`}
+                      title={getStatusTooltip(activeSectionData.status)}
+                      tabIndex={0}
+                      aria-label={`Status: ${activeSectionData.status.replace("_", " ")} - ${getStatusTooltip(activeSectionData.status)}`}
+                    >
+                      {activeSectionData.status.replace("_", " ")}
+                    </span>
                   </span>
                   <span>·</span>
                   <span>

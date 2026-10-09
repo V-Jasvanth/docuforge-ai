@@ -17,8 +17,8 @@ export async function GET(
 
     const { filename, buffer } = await exportZipBundle(projectId);
 
-    // Use Web standard Blob for type-safe NextResponse BodyInit compatibility
-    const responseBody = new Blob([buffer], { type: "application/zip" });
+    const responseBody = new ArrayBuffer(buffer.byteLength);
+    new Uint8Array(responseBody).set(buffer);
 
     return new NextResponse(responseBody, {
       status: 200,

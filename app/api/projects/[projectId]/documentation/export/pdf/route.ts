@@ -24,9 +24,8 @@ export async function GET(
 
     const { filename, buffer } = await exportPdf(projectId);
 
-    // Convert the Node.js Buffer to a standard ArrayBuffer for NextResponse.
-    const responseBody = new ArrayBuffer(buffer.byteLength);
-    new Uint8Array(responseBody).set(buffer);
+    // Convert Node.js Buffer to Uint8Array for NextResponse BodyInit compatibility
+    const responseBody = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
     return new NextResponse(responseBody, {
       status: 200,

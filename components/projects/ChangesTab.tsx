@@ -231,10 +231,10 @@ export function ChangesTab({ projectId }: ChangesTabProps) {
           </CardHeader>
           <CardContent className="p-4 space-y-3 font-mono text-xs">
             <div className="p-3 rounded bg-slate-900 text-slate-200 space-y-1">
-              <p className="text-slate-400">// Change status: {selectedFile.status}</p>
+              <p className="text-slate-400">{"// "}Change status: {selectedFile.status}</p>
               {selectedFile.oldSize !== undefined && <p className="text-rose-400">- Previous file size: {selectedFile.oldSize} bytes</p>}
               {selectedFile.newSize !== undefined && <p className="text-emerald-400">+ Updated file size: {selectedFile.newSize} bytes</p>}
-              <p className="text-amber-400 mt-2">// Impact summary:</p>
+              <p className="text-amber-400 mt-2">{"// "}Impact summary:</p>
               <p className="text-slate-300">File {selectedFile.path} was modified during repository sync.</p>
             </div>
           </CardContent>

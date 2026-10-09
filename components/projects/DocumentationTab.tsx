@@ -583,7 +583,7 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
             ) : (
               <div className="p-4 text-center text-xs text-slate-500 space-y-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
                 <Filter className="h-4 w-4 mx-auto text-slate-400" />
-                <p>No sections match filter <strong>"{statusFilter?.replace("_", " ")}"</strong>.</p>
+                <p>No sections match filter <strong>&quot;{statusFilter?.replace("_", " ")}&quot;</strong>.</p>
                 <button
                   onClick={() => setStatusFilter(null)}
                   className="text-brand-600 dark:text-brand-400 hover:underline font-medium text-[11px]"

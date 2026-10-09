@@ -17,19 +17,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install
 
       - name: Unit tests
-        run: node tests/run-tests.mjs
+        run: npm test
 
       - name: Phase 4 E2E
-        run: node scripts/test-phase4-e2e.mjs
+        run: npm run test:e2e
 
       - name: Phase 5 audit
-        run: node scripts/test-phase5-audit.mjs
+        run: npm run test:audit
 
       - name: Production build
         run: npm run build

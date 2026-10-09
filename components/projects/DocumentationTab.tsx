@@ -105,6 +105,8 @@ export function DocumentationTab({ projectId }: DocumentationTabProps) {
     ? new Date(latestTimestamp).toLocaleString()
     : versions.length > 0 && versions[0]?.createdAt
     ? new Date(versions[0].createdAt).toLocaleString()
+    : "Not updated yet";
+
   const getStatusTooltip = (status: string): string => {
     switch (status) {
       case "GENERATED":

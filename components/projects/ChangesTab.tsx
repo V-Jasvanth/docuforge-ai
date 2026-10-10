@@ -196,7 +196,7 @@ export function ChangesTab({ projectId }: ChangesTabProps) {
 
                     <div className="flex items-center space-x-3 shrink-0">
                       <Badge
-                        variant={item.status === "ADDED" ? "success" : item.status === "REMOVED" ? "danger" : "default"}
+                        variant={item.status === "ADDED" ? "success" : item.status === "REMOVED" ? "error" : "default"}
                         className="text-[10px]"
                       >
                         {item.status}

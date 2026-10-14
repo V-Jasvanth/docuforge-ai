@@ -3,19 +3,14 @@
 > **"Understand, document, and maintain your codebase with AI."**
 
 DocuForge AI is a serious, production-quality developer SaaS tool that allows developers to connect software projects, analyze their codebases, understand architectural structures, and generate high-quality technical documentation using AI.
-
 ---
-
 ## 🌟 Core Features
-
 - 🔍 **Codebase Parsing & Structure Analysis** — Automatic scanning of repository files, ASTs, API route handlers, and database ORM schemas with filtering engine for binary and build artifacts.
 - ⚡ **Provider-Independent AI Service** — Decoupled AI architecture supporting OpenAI, Anthropic, Gemini, or custom models without vendor lock-in.
 - 📚 **Comprehensive Technical Documentation** — Auto-generates README, Project Overview, Architecture Guides, API Reference, Database ER schemas, Environment Variables, and Deployment guides.
 - 🔄 **Documentation Drift Detection** — Detects codebase modifications and highlights affected documentation sections that require updating.
 - 🛠️ **Developer-Focused SaaS Workspace** — Modern Next.js App Router workspace with dark/light themes, inline editing, and version snapshotting.
-
 ---
-
 ## 🏗️ Technology Stack
 
 | Layer | Technology |
